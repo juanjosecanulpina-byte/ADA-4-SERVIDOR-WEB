@@ -1,33 +1,40 @@
 <?php
+session_start();
 include("conexion.php");
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $nombre = trim($_POST['nombre'] ?? '');
-    $correo = trim($_POST['correo'] ?? '');
-    $mensaje = trim($_POST['mensaje'] ?? '');
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $nombre   = trim($_POST['nombre'] ?? '');
+    $correo   = trim($_POST['correo'] ?? '');
+    $telefono = trim($_POST['telefono'] ?? '');
+    $mensaje  = trim($_POST['mensaje'] ?? '');
+    $origen   = $_POST['origen'] ?? 'publico';
 
+    // Validación de campos obligatorios
     if ($nombre === "" || $correo === "" || $mensaje === "") {
-        echo "<script>alert('Por favor, completa todos los campos.'); window.history.back();</script>";
+        $destino = ($origen === 'panel') ? "panel.php?error=campos" : "index.php?error=campos";
+        header("Location: $destino");
         exit();
     }
 
+    // Validación de correo electrónico
     if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
-        echo "<script>alert('Por favor, ingresa un correo electrónico válido.'); window.history.back();</script>";
+        $destino = ($origen === 'panel') ? "panel.php?error=correo" : "index.php?error=correo";
+        header("Location: $destino");
         exit();
     }
 
-    $nombreEscapado = $conexion->real_escape_string($nombre);
-    $correoEscapado = $conexion->real_escape_string($correo);
-    $mensajeEscapado = $conexion->real_escape_string($mensaje);
+    // Inserción segura mediante consulta preparada (CREATE)
+    $stmt = $conexion->prepare("INSERT INTO contactos (nombre, correo, telefono, mensaje, estado) VALUES (?, ?, ?, ?, 'activo')");
+    $stmt->bind_param("ssss", $nombre, $correo, $telefono, $mensaje);
 
-    $sql = "INSERT INTO contactos (nombre, correo, mensaje) VALUES ('$nombreEscapado', '$correoEscapado', '$mensajeEscapado')";
-
-    if ($conexion->query($sql) === TRUE) {
-        echo "<script>alert('¡Mensaje enviado y guardado en la base de datos con éxito!'); window.location.href='index.php';</script>";
+    if ($stmt->execute()) {
+        $stmt->close();
+        $conexion->close();
+        $destino = ($origen === 'panel') ? "panel.php?msg=creado" : "index.php?msg=creado";
+        header("Location: $destino");
+        exit();
     } else {
-        echo "Error al guardar: " . $conexion->error;
+        echo "Error al guardar el registro: " . $conexion->error;
     }
-
-    $conexion->close();
 }
 ?>
